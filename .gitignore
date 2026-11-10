@@ -5,7 +5,16 @@
 *.pem
 *.p12
 *.pfx
+*.crt
+*.csr
+*.jwt
+*.log
+*.tar.gz
+*.tgz
+*kubeconfig*
+auth.json
 __pycache__/
 node_modules/
 *.db
 *.sqlite*
+/opencode-openshell-lab/

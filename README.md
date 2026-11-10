@@ -1,41 +1,30 @@
-# OpenCode on OpenShift with MiniMax and MLflow
+# OpenCode on OpenShift
 
-This repository contains the OpenShift deployment source, a disposable service smoke-test client, the supporting scripts, and the deployment skill.
+This repository consolidates the OpenCode deployment manifests, build assets, operational scripts, and three OpenShift skills. It keeps the direct-Service deployment and the OpenShell sandbox deployment as separate tracks.
 
-## Deployed configuration
+## Choose a deployment track
 
-- Namespace: `opencode`
-- OpenCode image: `quay.io/opendatahub/odh-opencode-rhel9:v1.18.3`, extended with the MLflow 3.14.0 OpenCode plugin and rotating service-account token support
-- Model provider: `minimax-openai` using the OpenAI-compatible endpoint `https://api.minimax.io/v1`
-- Model ID: `MiniMax-M2.7-highspeed`
-- Configured model limits: 204,800 context tokens and 8,192 output tokens
-- MLflow workspace and experiment: `opencode` / `opencode-traces`
-- Persistent state: 10 GiB `gp3-csi` RWO PVC
-- Service: internal `ClusterIP` on port 4096; no Route is created
+| Track | Use it for | Files |
+| --- | --- | --- |
+| OpenShell 0.1.7 | A sandboxed OpenCode server with mediated egress, MiniMax or another OpenAI-compatible provider, MLflow tracing, and authenticated forwarding | [`skills/deploy-opencode-openshell-017/SKILL.md`](skills/deploy-opencode-openshell-017/SKILL.md) |
+| Direct internal Service | A simpler OpenCode 1.18.3 deployment exposed only through a ClusterIP, with Secret-backed provider settings and MLflow tracing | [`opencode-server-build/`](opencode-server-build/), [`skills/deploy-opencode-openshift-mlflow/SKILL.md`](skills/deploy-opencode-openshift-mlflow/SKILL.md) |
+| Repair legacy OpenShell | Repair and token-renewal guidance for existing OpenShell 0.1.2 / MiniMax Global deployments | [`skills/repair-opencode-openshell-mlflow/SKILL.md`](skills/repair-opencode-openshell-mlflow/SKILL.md) |
 
-The image reference in `opencode-server-build/workload.yaml` points to the validated image digest in the deployment cluster. Rebuild and refresh the digest before applying the workload to another cluster.
+Do not apply both deployment tracks into one namespace without reviewing resource ownership and naming. The OpenShell skill is the current path for new sandboxed deployments; the direct-Service and repair skills preserve earlier operational workflows.
 
-## Deploy
+## Repository layout
 
-Prerequisites include OpenShift 4.20+, the existing MLflow service at `redhat-ods-applications/mlflow:8443/mlflow`, the `mlflow-operator-mlflow-integration` ClusterRole, `gp3-csi`, and permission to build and push to the cluster's internal registry.
+- `opencode-server-build/`: direct-Service image source, manifests, health check, and client smoke program.
+- `scripts/create-secrets.py`: reads a local MiniMax key file and creates OpenShift Secrets without printing credential values.
+- `scripts/update-image-digest.py`: updates the direct-Service workload and smoke-client image references to the validated ImageStream digest.
+- `skills/deploy-opencode-openshell-017/`: OpenShell 0.1.7 skill, server and supervisor image assets, renderers, credential helpers, and version references.
+- `skills/deploy-opencode-openshift-mlflow/`: direct-Service deployment skill.
+- `skills/repair-opencode-openshell-mlflow/`: legacy deployment repair and MLflow renewal skill.
+- [`docs/disconnected-deployment.md`](docs/disconnected-deployment.md): image mirroring and offline-build considerations.
 
-Log in to the intended cluster, then create the project if needed and apply the dedicated service account and workspace-scoped MLflow RoleBinding:
+## Direct-Service deployment quick start
 
-```bash
-oc get namespace opencode >/dev/null 2>&1 || oc new-project opencode
-oc -n opencode create serviceaccount opencode-server --dry-run=client -o yaml | oc apply -f -
-oc -n opencode create rolebinding opencode-mlflow \
-  --clusterrole=mlflow-operator-mlflow-integration \
-  --serviceaccount=opencode:opencode-server --dry-run=client -o yaml | oc apply -f -
-```
-
-Create the Secret-backed provider and server credentials. The script reads the MiniMax key from `~/work/minimax.key` by default, sends Secret manifests to `oc` over stdin, and never prints secret values. It creates the random server password only if `opencode-server-auth` does not already exist.
-
-```bash
-python3 scripts/create-secrets.py --key-file ~/work/minimax.key
-```
-
-Build the image, update the pinned digest in both deployment and smoke-test manifests, then apply the workload:
+This path uses namespace `opencode` in its example manifests. Adapt the namespace, storage class, MLflow service details, and image digest to the target cluster. The checked-in digest and MLflow values are deployment examples, not portable discovery results.
 
 ```bash
 oc -n opencode apply -f opencode-server-build/build.yaml
@@ -46,39 +35,23 @@ oc -n opencode apply -f opencode-server-build/workload.yaml
 oc -n opencode rollout status deployment/opencode-server --timeout=10m
 ```
 
-## Smoke test and trace verification
+Create provider credentials separately with `scripts/create-secrets.py --namespace opencode --key-file ~/work/minimax.key`. The key stays in the local file and the OpenShift Secret; do not place it in manifests, ConfigMaps, build arguments, logs, or Git.
 
-The test client has only the OpenCode server-auth Secret and no Kubernetes service-account token. It checks Service access, Basic-auth enforcement, and a marked model response.
+## OpenShell and Dev Spaces access
 
-```bash
-oc -n opencode delete pod/opencode-client-check configmap/opencode-client-check --ignore-not-found
-oc -n opencode create configmap opencode-client-check \
-  --from-file=client.py=opencode-server-build/client.py --dry-run=client -o yaml | oc apply -f -
-oc -n opencode create -f opencode-server-build/client.yaml
-oc -n opencode wait --for=jsonpath='{.status.phase}=Succeeded' pod/opencode-client-check --timeout=6m
-oc -n opencode logs pod/opencode-client-check
-```
-
-Use the printed marker to verify a matching trace in the `opencode` workspace and `opencode-traces` experiment. Follow the complete MLflow trace and persistence checks in [`SKILL.md`](skills/deploy-opencode-openshift-mlflow/SKILL.md). Remove the disposable test resources after verification:
+Read and follow the complete OpenShell skill before deploying. Its client access uses two forwards: `oc port-forward` to the gateway and `openshell forward start` to the sandbox's OpenCode service. From an authorized Dev Spaces terminal after the client and protected login file have been provisioned:
 
 ```bash
-oc -n opencode delete pod/opencode-client-check configmap/opencode-client-check
+. ~/.config/opencode-remote/auth.env
+opencode attach http://127.0.0.1:4096 --dir /sandbox/workspace
 ```
 
-## Connect
+The client receives only OpenCode server Basic-auth credentials and the gateway mTLS client material. The MiniMax key and MLflow token remain server-side. Dev Spaces and OpenShell paths are scoped to one trusted user or group; gateway client certificates grant broad gateway control and must not be shared with untrusted users.
 
-Inside the cluster, use `http://opencode-server.opencode.svc.cluster.local:4096`. For local access:
+## Disconnected clusters
 
-```bash
-oc -n opencode port-forward svc/opencode-server 4096:4096
-```
+See [`docs/disconnected-deployment.md`](docs/disconnected-deployment.md) before using these builds in a disconnected or restricted-network cluster. Mirroring container images does not provide access to the external MiniMax API. A fully disconnected deployment needs a reachable internal OpenAI-compatible model endpoint or an explicitly permitted egress path.
 
-The Basic-auth username is `opencode`. Retrieve the generated password from the OpenShift Secret when needed:
+## Local-only deployment state
 
-```bash
-oc -n opencode get secret opencode-server-auth \
-  -o jsonpath='{.data.OPENCODE_SERVER_PASSWORD}' |
-  python3 -c 'import base64,sys; print(base64.b64decode(sys.stdin.buffer.read()).decode())'
-```
-
-The MiniMax API key remains in `Secret/opencode-provider`; credentials and local key files are excluded from this repository.
+Generated rendered manifests, local gateway client configuration, certificates, downloaded binaries, logs, and runtime settings are not part of this repository. The working tree ignores `opencode-openshell-lab/`; keep live credentials and private keys outside Git.

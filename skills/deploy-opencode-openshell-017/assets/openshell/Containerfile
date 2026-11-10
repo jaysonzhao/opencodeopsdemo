@@ -1,0 +1,31 @@
+ARG BASE_IMAGE
+FROM registry.access.redhat.com/ubi9/nodejs-22:latest AS plugin
+USER 0
+RUN git clone --depth 1 --branch v3.14.0 https://github.com/mlflow/mlflow.git /opt/mlflow-src
+WORKDIR /opt/mlflow-src/libs/typescript
+RUN npm ci --ignore-scripts \
+ && npm run build --workspace=@mlflow/core \
+ && npm run build --workspace=@mlflow/opencode \
+ && npm prune --omit=dev --ignore-scripts
+
+FROM ${BASE_IMAGE}
+USER 0
+RUN microdnf install -y --nodocs nodejs npm python3 python3-pip git curl && microdnf clean all
+RUN python3 -c 'import sys; assert sys.version_info >= (3,10)'
+RUN npm install --prefix /opt/opencode-install --no-audit --no-fund --ignore-scripts opencode-linux-x64-baseline@1.18.3 \
+ && install -D -m 0755 /opt/opencode-install/node_modules/opencode-linux-x64-baseline/bin/opencode /opt/opencode/bin/opencode \
+ && ln -sf /opt/opencode/bin/opencode /usr/local/bin/opencode \
+ && /opt/opencode/bin/opencode --version
+RUN pip3 install --no-cache-dir 'mlflow[kubernetes]==3.14.0'
+COPY --from=plugin /opt/mlflow-src/libs/typescript /opt/mlflow-ts
+COPY start.py check_trace.py /opt/opencode-launch/
+RUN chmod -R a+rX /opt/mlflow-ts /opt/opencode-launch \
+ && mkdir -p /sandbox/.opencode-setup /sandbox/workspace \
+ && chgrp -R 0 /sandbox && chmod -R g=u /sandbox \
+ && command -v rg \
+ && python3 -c 'import mlflow; print(mlflow.__version__)'
+USER 1001
+WORKDIR /sandbox
+ENV HOME=/sandbox
+ENTRYPOINT []
+CMD ["python3", "/opt/opencode-launch/start.py"]

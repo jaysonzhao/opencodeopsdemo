@@ -1,0 +1,4 @@
+interface:
+  display_name: "Repair OpenCode, OpenShell and MLflow"
+  short_description: "Fix OpenCode and renew tracing tokens without restarts"
+  default_prompt: "Use $repair-opencode-openshell-mlflow to diagnose my OpenCode sandbox, repair forwarding and MiniMax or MLflow failures, and add MLflow token renewal without routine sandbox restarts."

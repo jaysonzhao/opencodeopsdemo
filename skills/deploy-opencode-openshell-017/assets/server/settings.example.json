@@ -1,0 +1,14 @@
+{
+  "namespace": "opencode-internal",
+  "model_base_url": null,
+  "model_id": null,
+  "model_context": null,
+  "model_output": null,
+  "model_secret": "opencode-model-api",
+  "model_secret_key": "API_KEY",
+  "allow_internal_http_model": false,
+  "mlflow_uri": null,
+  "mlflow_workspace": "opencode-internal",
+  "mlflow_experiment": "opencode-server-traces",
+  "python_binary": null
+}

@@ -5,6 +5,8 @@ description: Deploy a persistent OpenCode HTTP server on OpenShift 4.20 or later
 
 # OpenCode server on OpenShift with MLflow
 
+For disconnected or restricted-network targets, read [../../docs/disconnected-deployment.md](../../docs/disconnected-deployment.md) before building. The current Containerfile fetches public sources and packages; mirror them or promote a prebuilt digest-pinned image.
+
 Follow this workflow with an authenticated `oc` session. All source files and commands needed are included here. When asked only to prepare files, generate them without applying to a cluster. Never report live deployment or trace export as verified until section 7 passes.
 
 ## 1. Establish the deployment contract

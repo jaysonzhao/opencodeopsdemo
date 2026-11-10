@@ -1,0 +1,38 @@
+# Dedicated internal 0.1.7 gateway. Set names and block PVC classes during installation.
+global:
+  image:
+    tag: "0.1.7"
+podSecurityContext: null
+securityContext:
+  runAsNonRoot: true
+  runAsUser: null
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+  seccompProfile:
+    type: RuntimeDefault
+supervisor:
+  podSecurityContext:
+    runAsUser: null
+    runAsGroup: null
+    fsGroup: null
+  network:
+    additionalCaConfigMapName: opencode-destination-ca
+server:
+  disableTls: false
+  tls:
+    enableMtls: true
+  auth:
+    allowUnauthenticatedUsers: true
+  telemetryEnabled: false
+  workspaceDefaultStorageSize: 10Gi
+  drivers:
+    kubernetes:
+      workspaceMode: shared
+      allowDriverConfig: true
+pkiInitJob:
+  enabled: true
+networkPolicy:
+  enabled: true
+openshiftRoute:
+  enabled: false

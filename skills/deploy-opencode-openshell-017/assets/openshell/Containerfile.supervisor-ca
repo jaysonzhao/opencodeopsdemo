@@ -1,0 +1,8 @@
+ARG SUPERVISOR_IMAGE
+FROM ${SUPERVISOR_IMAGE} AS original
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest AS trust
+COPY --from=original /etc/ssl/certs/ca-certificates.crt /tmp/public-ca.crt
+COPY service-ca.crt /tmp/service-ca.crt
+RUN cat /tmp/public-ca.crt /tmp/service-ca.crt > /tmp/combined-ca.crt
+FROM original
+COPY --from=trust /tmp/combined-ca.crt /etc/ssl/certs/ca-certificates.crt
