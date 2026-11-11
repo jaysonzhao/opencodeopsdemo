@@ -35,7 +35,9 @@ fail() {
 
 command -v oc >/dev/null 2>&1 || fail "oc is not installed or is not on PATH."
 command -v python3 >/dev/null 2>&1 || fail "python3 is required for the local port check."
+command -v ps >/dev/null 2>&1 || fail "ps is required to identify a stale gateway tunnel."
 [[ -n "$OPENSHELL_BIN" && -x "$OPENSHELL_BIN" ]] || fail "OpenShell CLI not found. Set OPENSHELL_BIN or install it at ~/.local/bin/openshell."
+OC_BIN="$(command -v oc)"
 
 oshell() {
   "$OPENSHELL_BIN" --workspace "$WORKSPACE" "$@"
@@ -68,18 +70,63 @@ mkdir -p "$STATE_DIR"
 chmod 700 "$STATE_DIR"
 LOG_FILE="$STATE_DIR/gateway-port-forward.log"
 
-if ! tcp_port_open "$LOCAL_GATEWAY_PORT"; then
+gateway_ready() {
+  oshell status >/dev/null 2>&1
+}
+
+gateway_ready_after_retry() {
+  for _ in 1 2 3; do
+    if gateway_ready; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+gateway_tunnel_pids() {
+  ps -eo pid=,comm=,args= | awk \
+    -v ns="$NS" \
+    -v release="$RELEASE" \
+    -v ports="$LOCAL_GATEWAY_PORT:$GATEWAY_SERVICE_PORT" \
+    '$2 == "oc" && index($0, "-n " ns " ") && index($0, "port-forward") && index($0, "svc/" release) && index($0, ports) { print $1 }'
+}
+
+start_gateway_tunnel() {
   printf 'Starting gateway port-forward on 127.0.0.1:%s...\n' "$LOCAL_GATEWAY_PORT"
-  nohup oc -n "$NS" port-forward --address 127.0.0.1 \
+  nohup "$OC_BIN" -n "$NS" port-forward --address 127.0.0.1 \
     "svc/$RELEASE" "$LOCAL_GATEWAY_PORT:$GATEWAY_SERVICE_PORT" \
     >"$LOG_FILE" 2>&1 </dev/null &
-else
+}
+
+if tcp_port_open "$LOCAL_GATEWAY_PORT"; then
   printf 'A listener already uses 127.0.0.1:%s; checking whether it reaches the configured gateway.\n' "$LOCAL_GATEWAY_PORT"
+  if ! gateway_ready_after_retry; then
+    STALE_PIDS="$(gateway_tunnel_pids)"
+    [[ -n "$STALE_PIDS" ]] \
+      || fail "Port $LOCAL_GATEWAY_PORT is occupied by an unrecognized process and the gateway is unreachable. Stop that listener manually, then rerun this script."
+    printf 'Restarting stale gateway port-forward process(es): %s\n' "${STALE_PIDS//$'\n'/ }"
+    while IFS= read -r pid; do
+      [[ -n "$pid" ]] && kill "$pid" 2>/dev/null || true
+    done <<<"$STALE_PIDS"
+    for _ in $(seq 1 10); do
+      if ! tcp_port_open "$LOCAL_GATEWAY_PORT"; then
+        break
+      fi
+      sleep 1
+    done
+    if tcp_port_open "$LOCAL_GATEWAY_PORT"; then
+      fail "Stale gateway tunnel did not release port $LOCAL_GATEWAY_PORT. Stop its process manually, then rerun this script."
+    fi
+    start_gateway_tunnel
+  fi
+else
+  start_gateway_tunnel
 fi
 
 gateway_ready=0
 for _ in $(seq 1 30); do
-  if oshell status >/dev/null 2>&1; then
+  if gateway_ready; then
     gateway_ready=1
     break
   fi

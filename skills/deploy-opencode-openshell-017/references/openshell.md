@@ -231,6 +231,8 @@ python3 "$SKILL_DIR/scripts/credentials.py" smoke --dir /sandbox/workspace
 python3 "$SKILL_DIR/scripts/credentials.py" attach --dir /sandbox/workspace
 ```
 
+For the `admin-devspaces` client, select the registered gateway and run `scripts/start-devspaces-forwards.sh` from the repository. It restores both the loopback gateway tunnel (`127.0.0.1:18081`) and the local OpenCode forward (`127.0.0.1:4096`). If `forward start` reports `connect error: transport error`, inspect `oshell status`; `tcp connect error: Connection refused` indicates the gateway tunnel is absent or stale. The helper restarts a stale matching `oc port-forward` process without killing unrelated listeners.
+
 The last command securely supplies the local login variables and runs **`opencode attach http://127.0.0.1:4096 --dir /sandbox/workspace`**. It requires read access only to the application-login Secret, not the model Secret. Alternatively, enter a securely delivered server password locally into `OPENCODE_SERVER_PASSWORD` and set `OPENCODE_SERVER_USERNAME=opencode`; then use the same `opencode attach` command. Do not put the password in CLI flags/history. Stop a background forward with `oshell forward stop 4096 "$SANDBOX"`. An egress allow rule for localhost:4096 is unnecessary.
 
 ## 6. Bring code context into the sandbox
