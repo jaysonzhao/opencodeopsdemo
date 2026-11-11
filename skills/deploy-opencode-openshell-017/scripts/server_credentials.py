@@ -158,12 +158,12 @@ def identity(sandbox):
     return {'mode':'sandbox-instance',**fields}
 
 
-def application_health(c):
+def application_health(c, port=4096):
     import urllib.request
     auth = secret(c['namespace'],AUTH_SECRET)
     credentials = auth['OPENCODE_SERVER_USERNAME']+':'+auth['OPENCODE_SERVER_PASSWORD']
     header = 'Basic '+base64.b64encode(credentials.encode()).decode()
-    request = urllib.request.Request('http://127.0.0.1:4096/global/health',
+    request = urllib.request.Request(f'http://127.0.0.1:{port}/global/health',
                                     headers={'Authorization':header})
     with urllib.request.urlopen(request,timeout=8) as response:
         if response.status != 200 or json.load(response).get('healthy') is not True:
@@ -183,14 +183,14 @@ def writer_lock(sandbox):
         os.close(fd)
 
 
-def renew(c, sandbox):
+def renew(c, sandbox, port=4096):
     check_profile(TRACE_PROFILE,'MLFLOW_TRACKING_TOKEN')
     before = identity(sandbox)
     if before is None:
         raise ValueError('Cannot identify the running OpenShell sandbox instance')
     fallback = before['mode'] == 'sandbox-instance'
     if fallback:
-        application_health(c)
+        application_health(c,port)
     value, expiry = token(c)
     oshell('provider','update',TRACE_PROVIDER,'--credential','MLFLOW_TRACKING_TOKEN',
            '--credential-expires-at','MLFLOW_TRACKING_TOKEN='+str(expiry*1000),
@@ -207,7 +207,7 @@ def renew(c, sandbox):
     if after != before:
         raise ValueError('OpenShell sandbox identity changed during renewal')
     if fallback:
-        application_health(c)
+        application_health(c,port)
         evidence = {'identity_mode':'sandbox-instance','sandbox_instance_unchanged':True,
                     'server_health_verified':True,'process_identity_verified':False}
     else:
@@ -222,12 +222,12 @@ def client_env(c):
     return {**os.environ, **{k:auth[k] for k in ('OPENCODE_SERVER_USERNAME','OPENCODE_SERVER_PASSWORD')}}
 
 
-def smoke(c, directory):
+def smoke(c, directory, port=4096):
     import urllib.request
     import urllib.error
     import urllib.parse
     env = client_env(c)
-    base = 'http://127.0.0.1:4096'
+    base = f'http://127.0.0.1:{port}'
     query = '?'+urllib.parse.urlencode({'directory':directory})
     creds = env['OPENCODE_SERVER_USERNAME']+':'+env['OPENCODE_SERVER_PASSWORD']
     headers = {'Authorization':'Basic '+base64.b64encode(creds.encode()).decode(),'Content-Type':'application/json'}
@@ -262,8 +262,11 @@ def main():
     p.add_argument('--runtime',default=str(Path(os.environ.get('LAB_DIR','.'))/'generated/runtime.json'))
     p.add_argument('--sandbox',default=os.environ.get('SANDBOX','opencode-server'))
     p.add_argument('--dir',default='/sandbox/workspace')
+    p.add_argument('--port',type=int,default=int(os.environ.get('LOCAL_OPENCODE_PORT','4096')))
     a = p.parse_args()
     os.umask(0o077)
+    if not 1 <= a.port <= 65535:
+        raise ValueError('Port must be between 1 and 65535')
     c = validate(json.loads(Path(a.runtime).read_text()))
     if os.environ.get('NS') and os.environ['NS'] != c['namespace']:
         raise ValueError('Runtime namespace differs from the selected deployment namespace')
@@ -288,9 +291,9 @@ def main():
     elif a.action == 'stage':
         stage(c,a.sandbox)
     elif a.action == 'attach':
-        subprocess.run(['opencode','attach','http://127.0.0.1:4096','--dir',a.dir],env=client_env(c),check=True)
+        subprocess.run(['opencode','attach',f'http://127.0.0.1:{a.port}','--dir',a.dir],env=client_env(c),check=True)
     elif a.action == 'smoke':
-        smoke(c,a.dir)
+        smoke(c,a.dir,a.port)
     elif a.action == 'rotate-model':
         check_profile(MODEL_PROFILE,'MODEL_API_KEY')
         oshell('provider','update',MODEL_PROVIDER,'--credential','MODEL_API_KEY','--wait','--timeout','60',
@@ -300,7 +303,7 @@ def main():
         with writer_lock(a.sandbox):
             while True:
                 try:
-                    expiry = renew(c,a.sandbox)
+                    expiry = renew(c,a.sandbox,a.port)
                 except Exception as exc:
                     print(json.dumps({'event':'renewal_failed','error_type':type(exc).__name__}),flush=True)
                     if a.action != 'renew-loop':

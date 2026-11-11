@@ -47,9 +47,20 @@ scripts/start-devspaces-forwards.sh
 opencode attach http://127.0.0.1:4096 --dir /sandbox/workspace
 ```
 
-Select the intended gateway with `openshell gateway select` before running the helper. Run it again after a Dev Spaces workspace recreation. It restores the loopback-only gateway `oc port-forward`, checks authentication to the selected active gateway, and recreates the sandbox's local OpenCode forward. It expects the workspace's `oc` login, OpenShell 0.1.7 client configuration/mTLS files, and protected OpenCode login file to remain available; it does not provision credentials.
+The helper targets `openshell-opencode-017` by default; set `GATEWAY` to another registered alias when needed. Run it again after a Dev Spaces workspace recreation. It restores the loopback-only gateway `oc port-forward`, checks authentication to that gateway, and recreates the sandbox's local OpenCode forward. It expects the workspace's `oc` login, OpenShell 0.1.7 client configuration/mTLS files, and protected OpenCode login file to remain available; it does not provision credentials.
 
-If `openshell forward start` reports `connect error: transport error`, check `openshell --workspace default status`. A `tcp connect error: Connection refused` means the selected gateway endpoint has no live listener at `127.0.0.1:18081`; rerun the helper to start or repair the gateway tunnel and recreate the OpenCode forward. Confirm that `openshell gateway select` points to `openshell-opencode-017` first.
+To create a second sandbox in the prepared `cluster-9blcx` environment, run these scripts from this repository in the Dev Spaces terminal. The creation script pins the existing qualified image digest, inherits the source sandbox base policy, reuses the existing `opencode-model` and `opencode-mlflow` providers, and refuses to overwrite a sandbox with the same name. Its nonsecret settings are in [`deployments/cluster-9blcx/runtime.json`](deployments/cluster-9blcx/runtime.json); the MiniMax key and MLflow token stay in the existing provider/Secret workflow.
+
+```bash
+./scripts/create-opencode-sandbox.sh
+./scripts/attach-devspaces-opencode.sh --check
+./scripts/attach-devspaces-opencode.sh --smoke
+./scripts/attach-devspaces-opencode.sh
+```
+
+The second sandbox is named `opencode-server-2` and uses local port `4097`, leaving port `4096` for the original. `--check` validates authenticated server health, `--smoke` makes a marked MiniMax request, and the default action starts `opencode attach` for `/sandbox/workspace`. Override `SANDBOX`, `LOCAL_OPENCODE_PORT`, `GATEWAY`, or `RUNTIME_JSON` for another instance; review the runtime settings before using them on a different cluster.
+
+If `openshell forward start` reports `connect error: transport error`, check `openshell --gateway openshell-opencode-017 --workspace default status`. A `tcp connect error: Connection refused` means the configured gateway endpoint has no live listener at `127.0.0.1:18081`; rerun the helper to start or repair the gateway tunnel and recreate the OpenCode forward. Set `GATEWAY` to the intended registered alias when it is not `openshell-opencode-017`.
 
 The client receives only OpenCode server Basic-auth credentials and the gateway mTLS client material. The MiniMax key and MLflow token remain server-side. Dev Spaces and OpenShell paths are scoped to one trusted user or group; gateway client certificates grant broad gateway control and must not be shared with untrusted users.
 

@@ -5,10 +5,11 @@ umask 077
 # Restore the two local tunnels used by the OpenShell 0.1.7 Dev Spaces client.
 # This expects oc authentication, the OpenShell CLI/config, and the gateway's
 # mTLS client files to have already been provisioned in this Dev Spaces home.
-# Select the intended gateway with `openshell gateway select` before running.
+# Set GATEWAY when the configured alias differs from openshell-opencode-017.
 
 NS="${NS:-opencode-internal}"
 RELEASE="${RELEASE:-openshell-opencode-017}"
+GATEWAY="${GATEWAY:-openshell-opencode-017}"
 WORKSPACE="${WORKSPACE:-default}"
 SANDBOX="${SANDBOX:-opencode-server}"
 LOCAL_GATEWAY_PORT="${LOCAL_GATEWAY_PORT:-18081}"
@@ -40,7 +41,7 @@ command -v ps >/dev/null 2>&1 || fail "ps is required to identify a stale gatewa
 OC_BIN="$(command -v oc)"
 
 oshell() {
-  "$OPENSHELL_BIN" --workspace "$WORKSPACE" "$@"
+  "$OPENSHELL_BIN" --gateway "$GATEWAY" --workspace "$WORKSPACE" "$@"
 }
 
 oc whoami >/dev/null 2>&1 || fail "oc is not logged in. Log in to the cluster used by this Dev Spaces workspace, then rerun this script."
@@ -134,13 +135,13 @@ for _ in $(seq 1 30); do
 done
 
 if [[ "$gateway_ready" != 1 ]]; then
-  printf 'OpenShell could not reach/authenticate to the selected active gateway.\n' >&2
+  printf 'OpenShell could not reach/authenticate to gateway %s.\n' "$GATEWAY" >&2
   printf 'Check the Dev Spaces oc login, saved OpenShell mTLS config, and tunnel log: %s\n' "$LOG_FILE" >&2
   oshell status >&2 || true
   exit 1
 fi
 
-printf 'Selected active OpenShell gateway is connected and authenticated.\n'
+printf 'Gateway %s is connected and authenticated.\n' "$GATEWAY"
 
 # Recreate only this user's local OpenCode forward so the script also repairs
 # a stale forwarding process left behind by a terminal restart.

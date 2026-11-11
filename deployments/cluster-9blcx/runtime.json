@@ -1,0 +1,14 @@
+{
+  "namespace": "opencode-internal",
+  "model_base_url": "https://api.minimax.io/v1",
+  "model_id": "MiniMax-M2.7-highspeed",
+  "model_context": 32768,
+  "model_output": 8192,
+  "model_secret": "opencode-model-api",
+  "model_secret_key": "API_KEY",
+  "allow_internal_http_model": false,
+  "mlflow_uri": "https://mlflow.redhat-ods-applications.svc.cluster.local:8443/mlflow",
+  "mlflow_workspace": "opencode-internal",
+  "mlflow_experiment": "opencode-server-traces",
+  "python_binary": "/usr/bin/python3.12"
+}
