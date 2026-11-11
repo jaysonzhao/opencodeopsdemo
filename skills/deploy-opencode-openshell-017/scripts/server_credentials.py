@@ -133,8 +133,41 @@ print('Runtime and application login staged')
 
 
 def identity(sandbox):
-    return json.loads(oshell('sandbox','exec','-n',sandbox,'--no-login-shell','--',
-        'python3','/opt/opencode-server/server_identity.py'))['server']
+    try:
+        server = json.loads(oshell('sandbox','exec','-n',sandbox,'--no-login-shell','--',
+            'python3','/opt/opencode-server/server_identity.py')).get('server')
+    except Exception:
+        server = None
+    if server is not None:
+        return {'mode':'process','server':server}
+
+    observation = json.loads(oshell('sandbox','provider','status',sandbox,TRACE_PROVIDER,'--output','json'))
+    targets = observation.get('targets',[])
+    if len(targets) != 1:
+        raise ValueError('Cannot identify the sandbox provider target')
+    target = targets[0]
+    observed = target.get('observed',{})
+    desired = target.get('receipt',{}).get('desired',{})
+    fields = {
+        'sandbox_id':desired.get('sandbox_id'),
+        'session_id':observed.get('session_id'),
+        'process_instance_id':observed.get('process_instance_id'),
+    }
+    if not all(fields.values()):
+        return None
+    return {'mode':'sandbox-instance',**fields}
+
+
+def application_health(c):
+    import urllib.request
+    auth = secret(c['namespace'],AUTH_SECRET)
+    credentials = auth['OPENCODE_SERVER_USERNAME']+':'+auth['OPENCODE_SERVER_PASSWORD']
+    header = 'Basic '+base64.b64encode(credentials.encode()).decode()
+    request = urllib.request.Request('http://127.0.0.1:4096/global/health',
+                                    headers={'Authorization':header})
+    with urllib.request.urlopen(request,timeout=8) as response:
+        if response.status != 200 or json.load(response).get('healthy') is not True:
+            raise ValueError('Authenticated OpenCode health check failed')
 
 
 @contextmanager
@@ -154,15 +187,32 @@ def renew(c, sandbox):
     check_profile(TRACE_PROFILE,'MLFLOW_TRACKING_TOKEN')
     before = identity(sandbox)
     if before is None:
-        raise ValueError('Start and qualify the server before routine renewal')
+        raise ValueError('Cannot identify the running OpenShell sandbox instance')
+    fallback = before['mode'] == 'sandbox-instance'
+    if fallback:
+        application_health(c)
     value, expiry = token(c)
     oshell('provider','update',TRACE_PROVIDER,'--credential','MLFLOW_TRACKING_TOKEN',
            '--credential-expires-at','MLFLOW_TRACKING_TOKEN='+str(expiry*1000),
            '--wait','--timeout','60','--output','json',extra_env={'MLFLOW_TRACKING_TOKEN':value})
-    oshell('sandbox','provider','status',sandbox,TRACE_PROVIDER,'--wait','--timeout','60')
-    if identity(sandbox) != before:
-        raise ValueError('Server identity changed during renewal')
-    print(json.dumps({'event':'mlflow_renewed','expires_at':expiry,'server_unchanged':True,
+    status = json.loads(oshell('sandbox','provider','status',sandbox,TRACE_PROVIDER,
+                               '--wait','--timeout','60','--output','json'))
+    targets = status.get('targets',[])
+    if len(targets) != 1:
+        raise ValueError('Cannot verify the updated sandbox provider target')
+    observed = targets[0].get('observed',{})
+    if observed.get('credentials_installed') is not True or observed.get('reason') == 'credential_expired':
+        raise ValueError('MLflow provider credential did not activate')
+    after = identity(sandbox)
+    if after != before:
+        raise ValueError('OpenShell sandbox identity changed during renewal')
+    if fallback:
+        application_health(c)
+        evidence = {'identity_mode':'sandbox-instance','sandbox_instance_unchanged':True,
+                    'server_health_verified':True,'process_identity_verified':False}
+    else:
+        evidence = {'identity_mode':'process','server_process_unchanged':True}
+    print(json.dumps({'event':'mlflow_renewed','expires_at':expiry,**evidence,
                       'trace_delivery_verified':False}),flush=True)
     return expiry
 
