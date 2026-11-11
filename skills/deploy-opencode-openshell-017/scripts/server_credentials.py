@@ -267,6 +267,17 @@ def main():
     c = validate(json.loads(Path(a.runtime).read_text()))
     if os.environ.get('NS') and os.environ['NS'] != c['namespace']:
         raise ValueError('Runtime namespace differs from the selected deployment namespace')
+    # Static MLflow credential mode guard
+    mode_path = Path(a.runtime).resolve().with_name('mlflow-credential-mode.json')
+    if mode_path.exists():
+        mode = json.loads(mode_path.read_text())
+        if mode.get('provider') != TRACE_PROVIDER:
+            raise ValueError('MLflow mode record targets another provider')
+        if mode.get('mode') not in ('static-serviceaccount-secret', 'short-lived'):
+            raise ValueError('Unknown MLflow credential mode')
+        if mode['mode'] == 'static-serviceaccount-secret' and a.action in (
+                'create-providers', 'renew-mlflow', 'renew-loop'):
+            raise ValueError('Static MLflow mode: use the static migration/rotation workflow')
     if a.action in ('create-providers','renew-mlflow','renew-loop','rotate-model'):
         if not re.search(r'\b0\.1\.7\b',run([os.environ['OPENSHELL_BIN'],'--version'])):
             raise ValueError('Use matching OpenShell 0.1.7 trusted components')

@@ -51,6 +51,8 @@ Select the intended gateway with `openshell gateway select` before running the h
 
 The client receives only OpenCode server Basic-auth credentials and the gateway mTLS client material. The MiniMax key and MLflow token remain server-side. Dev Spaces and OpenShell paths are scoped to one trusted user or group; gateway client certificates grant broad gateway control and must not be shared with untrusted users.
 
+For the existing `cluster-9blcx` OpenShell deployment's static MLflow ServiceAccount credential and manual rotation procedure, see [`docs/opencode-internal-static-mlflow-token.md`](docs/opencode-internal-static-mlflow-token.md).
+
 ## Disconnected clusters
 
 See [`docs/disconnected-deployment.md`](docs/disconnected-deployment.md) before using these builds in a disconnected or restricted-network cluster. Mirroring container images does not provide access to the external MiniMax API. A fully disconnected deployment needs a reachable internal OpenAI-compatible model endpoint or an explicitly permitted egress path.
