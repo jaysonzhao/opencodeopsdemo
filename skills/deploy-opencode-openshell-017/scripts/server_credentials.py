@@ -14,7 +14,6 @@ import re
 import secrets
 import subprocess
 import time
-import yaml
 from render_server import validate
 
 MODEL_PROVIDER = 'opencode-model'
@@ -93,7 +92,7 @@ def token(c):
 
 
 def check_profile(name, env_key):
-    doc = yaml.safe_load(oshell('profile','export',name,'-o','yaml'))
+    doc = json.loads(oshell('profile','export',name,'-o','json'))
     creds = [v for v in doc.get('credentials',[]) if env_key in v.get('env_vars',[])]
     if (len(creds) != 1 or creds[0].get('stable_placeholder') is not True
             or creds[0].get('refresh') or creds[0].get('token_grant') or not doc.get('endpoints')):

@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 import re
 from urllib.parse import urlsplit
-import yaml
 
 OPENCODE = '/opt/opencode/bin/opencode'
 FIELDS = {'namespace', 'model_base_url', 'model_id', 'model_context', 'model_output',
@@ -76,6 +75,10 @@ def profile(pid, category, env, ep, binaries):
 
 
 def render(settings, out):
+    # Deployment rendering needs PyYAML, but runtime credential helpers only
+    # import validate(). Keep that validation usable in minimal Dev Spaces.
+    import yaml
+
     c = validate(settings)
     model = endpoint(c['model_base_url'], [('POST','/chat/completions'), ('GET','/models')], c['allow_internal_http_model'])
     ops = [('GET','/api/2.0/mlflow/experiments/get'), ('GET','/api/2.0/mlflow/experiments/get-by-name'),
