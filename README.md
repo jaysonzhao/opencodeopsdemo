@@ -47,7 +47,7 @@ scripts/start-devspaces-forwards.sh
 opencode attach http://127.0.0.1:4096 --dir /sandbox/workspace
 ```
 
-Run the helper again after a Dev Spaces workspace recreation. It restores the loopback-only gateway `oc port-forward`, checks OpenShell gateway authentication, and recreates the sandbox's local OpenCode forward. It expects the workspace's `oc` login, OpenShell 0.1.7 client configuration/mTLS files, and protected OpenCode login file to remain available; it does not provision credentials.
+Select the intended gateway with `openshell gateway select` before running the helper. Run it again after a Dev Spaces workspace recreation. It restores the loopback-only gateway `oc port-forward`, checks authentication to the selected active gateway, and recreates the sandbox's local OpenCode forward. It expects the workspace's `oc` login, OpenShell 0.1.7 client configuration/mTLS files, and protected OpenCode login file to remain available; it does not provision credentials.
 
 The client receives only OpenCode server Basic-auth credentials and the gateway mTLS client material. The MiniMax key and MLflow token remain server-side. Dev Spaces and OpenShell paths are scoped to one trusted user or group; gateway client certificates grant broad gateway control and must not be shared with untrusted users.
 
