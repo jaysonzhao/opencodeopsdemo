@@ -10,10 +10,11 @@ WORKSPACE="${WORKSPACE:-default}"
 GATEWAY="${GATEWAY:-openshell-opencode-017}"
 SOURCE_SANDBOX="${SOURCE_SANDBOX:-opencode-server}"
 SANDBOX="${SANDBOX:-opencode-server-2}"
+PIN_SOURCE_NODE="${PIN_SOURCE_NODE:-false}"
 MODEL_PROVIDER="opencode-model"
 MLFLOW_PROVIDER="opencode-mlflow"
-# The qualified node has 500m of unrequested CPU in this cluster snapshot.
-# Override CPU explicitly when deploying to a node with more available capacity.
+# Keep the sandbox small enough for shared OpenShift worker pools; override on
+# clusters with different capacity. By default, let the scheduler choose a node.
 CPU="${CPU:-500m}"
 MEMORY="${MEMORY:-4Gi}"
 
@@ -40,6 +41,10 @@ fail() {
   printf 'ERROR: %s\n' "$*" >&2
   exit 1
 }
+
+(( ${#SANDBOX} <= 19 )) || fail "Sandbox name is too long (maximum 19 characters): $SANDBOX"
+[[ "$PIN_SOURCE_NODE" == true || "$PIN_SOURCE_NODE" == false ]] \
+  || fail "Set PIN_SOURCE_NODE to true or false."
 
 oshell() {
   "$OPENSHELL_BIN" --gateway "$GATEWAY" --workspace "$WORKSPACE" "$@"
@@ -71,15 +76,22 @@ POD_PHASE="$(oc -n "$NS" get pod "$SOURCE_POD" -o jsonpath='{.status.phase}' 2>/
 SERVER_IMAGE="$(oc -n "$NS" get pod "$SOURCE_POD" -o jsonpath='{.spec.containers[0].image}')"
 [[ "$SERVER_IMAGE" =~ @sha256:[a-f0-9]{64}$ ]] \
   || fail "Source sandbox image is not pinned by digest: $SERVER_IMAGE"
-SOURCE_NODE="$(oc -n "$NS" get pod "$SOURCE_POD" -o jsonpath='{.spec.nodeName}')"
-NODE_HOSTNAME="$(oc get node "$SOURCE_NODE" -o jsonpath='{.metadata.labels.kubernetes\.io/hostname}')"
-[[ -n "$NODE_HOSTNAME" ]] || fail "Cannot resolve the qualified source node hostname."
-DRIVER_CONFIG_JSON="$(python3 - "$NODE_HOSTNAME" <<'PY'
+DRIVER_CONFIG_ARGS=()
+if [[ "$PIN_SOURCE_NODE" == true ]]; then
+  SOURCE_NODE="$(oc -n "$NS" get pod "$SOURCE_POD" -o jsonpath='{.spec.nodeName}')"
+  NODE_HOSTNAME="$(oc get node "$SOURCE_NODE" -o jsonpath='{.metadata.labels.kubernetes\.io/hostname}')"
+  [[ -n "$NODE_HOSTNAME" ]] || fail "Cannot resolve the source node hostname."
+  DRIVER_CONFIG_JSON="$(python3 - "$NODE_HOSTNAME" <<'PY'
 import json
 import sys
 print(json.dumps({'kubernetes': {'pod': {'node_selector': {'kubernetes.io/hostname': sys.argv[1]}}}}))
 PY
 )"
+  DRIVER_CONFIG_ARGS=(--driver-config-json "$DRIVER_CONFIG_JSON")
+  printf 'Pinning %s to the source node %s.\n' "$SANDBOX" "$SOURCE_NODE"
+else
+  printf 'Letting OpenShift schedule %s on an available node.\n' "$SANDBOX"
+fi
 
 TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/opencode-sandbox.XXXXXX")"
 trap 'rm -rf "$TEMP_DIR"' EXIT
@@ -97,10 +109,10 @@ if not required.issubset(policy):
     raise SystemExit('Source base policy is missing required fields')
 PY
 
-printf 'Creating %s from the existing server image on node %s.\n' "$SANDBOX" "$SOURCE_NODE"
+printf 'Creating %s from the existing server image digest.\n' "$SANDBOX"
 oshell sandbox create --name "$SANDBOX" --from "$SERVER_IMAGE" \
   --provider "$MODEL_PROVIDER" --provider "$MLFLOW_PROVIDER" --no-auto-providers \
-  --policy "$POLICY_FILE" --driver-config-json "$DRIVER_CONFIG_JSON" \
+  --policy "$POLICY_FILE" "${DRIVER_CONFIG_ARGS[@]}" \
   --cpu "$CPU" --memory "$MEMORY" --detach -- \
   python3 /opt/opencode-server/start.py
 
