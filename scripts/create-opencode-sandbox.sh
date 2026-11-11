@@ -15,7 +15,7 @@ MODEL_PROVIDER="opencode-model"
 MLFLOW_PROVIDER="opencode-mlflow"
 # Keep the sandbox small enough for shared OpenShift worker pools; override on
 # clusters with different capacity. By default, let the scheduler choose a node.
-CPU="${CPU:-500m}"
+CPU="${CPU:-250m}"
 MEMORY="${MEMORY:-4Gi}"
 
 OPENSHELL_BIN="${OPENSHELL_BIN:-$(command -v openshell || true)}"
@@ -133,3 +133,4 @@ oshell sandbox provider status "$SANDBOX" "$MLFLOW_PROVIDER" --wait --timeout 60
 oshell sandbox get "$SANDBOX" --output json \
   | python3 -c 'import json,sys; d=json.load(sys.stdin); s=d.get("sandbox",{}); print("Sandbox:",s.get("name")); print("Phase:",s.get("phase")); print("Workspace:",s.get("workspace"))'
 printf '\nNext, run scripts/attach-devspaces-opencode.sh --check (or --smoke).\n'
+printf 'The OpenCode listener uses sandbox port 4096; the Dev Spaces forward uses local port 4096 by default.\n'
