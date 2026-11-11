@@ -12,7 +12,9 @@ SOURCE_SANDBOX="${SOURCE_SANDBOX:-opencode-server}"
 SANDBOX="${SANDBOX:-opencode-server-2}"
 MODEL_PROVIDER="opencode-model"
 MLFLOW_PROVIDER="opencode-mlflow"
-CPU="${CPU:-2}"
+# The qualified node has 500m of unrequested CPU in this cluster snapshot.
+# Override CPU explicitly when deploying to a node with more available capacity.
+CPU="${CPU:-500m}"
 MEMORY="${MEMORY:-4Gi}"
 
 OPENSHELL_BIN="${OPENSHELL_BIN:-$(command -v openshell || true)}"
