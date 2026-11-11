@@ -42,9 +42,12 @@ Create provider credentials separately with `scripts/create-secrets.py --namespa
 Read and follow the complete OpenShell skill before deploying. Its client access uses two forwards: `oc port-forward` to the gateway and `openshell forward start` to the sandbox's OpenCode service. From an authorized Dev Spaces terminal after the client and protected login file have been provisioned:
 
 ```bash
+scripts/start-devspaces-forwards.sh
 . ~/.config/opencode-remote/auth.env
 opencode attach http://127.0.0.1:4096 --dir /sandbox/workspace
 ```
+
+Run the helper again after a Dev Spaces workspace recreation. It restores the loopback-only gateway `oc port-forward`, checks OpenShell gateway authentication, and recreates the sandbox's local OpenCode forward. It expects the workspace's `oc` login, OpenShell 0.1.7 client configuration/mTLS files, and protected OpenCode login file to remain available; it does not provision credentials.
 
 The client receives only OpenCode server Basic-auth credentials and the gateway mTLS client material. The MiniMax key and MLflow token remain server-side. Dev Spaces and OpenShell paths are scoped to one trusted user or group; gateway client certificates grant broad gateway control and must not be shared with untrusted users.
 
