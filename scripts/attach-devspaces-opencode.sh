@@ -29,6 +29,13 @@ if [ -z "${BASH_SOURCE:-}" ] || [ "${0##*/}" = sh ] || [ "${0##*/}" = bash ]; th
     mkdir -p "$(dirname -- "$BOOTSTRAP_REPO")"
     git clone --quiet --depth 1 --branch main "$REPO_URL" "$BOOTSTRAP_REPO"
   fi
+  if [ "${1:-attach}" = attach ]; then
+    if ! ( : </dev/tty ) 2>/dev/null; then
+      printf 'ERROR: interactive attach needs a controlling terminal; run this command in the Dev Spaces terminal.\n' >&2
+      exit 1
+    fi
+    exec bash "$BOOTSTRAP_REPO/scripts/attach-devspaces-opencode.sh" "$@" </dev/tty
+  fi
   exec bash "$BOOTSTRAP_REPO/scripts/attach-devspaces-opencode.sh" "$@"
 fi
 
