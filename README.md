@@ -39,15 +39,23 @@ Create provider credentials separately with `scripts/create-secrets.py --namespa
 
 ## OpenShell and Dev Spaces access
 
-Read and follow the complete OpenShell skill before deploying. Its client access uses two forwards: `oc port-forward` to the gateway and `openshell forward start` to the sandbox's OpenCode service. From an authorized Dev Spaces terminal after the client and protected login file have been provisioned:
+Read and follow the complete OpenShell skill before deploying. Client access uses two forwards: `oc port-forward` to the gateway and `openshell forward start` to the sandbox's OpenCode service.
+
+For a newly created Dev Spaces workspace, the attach script can be run directly from `sh`:
 
 ```bash
-scripts/start-devspaces-forwards.sh
-. ~/.config/opencode-remote/auth.env
-opencode attach http://127.0.0.1:4096 --dir /sandbox/workspace
+curl -LsSf https://github.com/jaysonzhao/opencodeopsdemo/raw/refs/heads/main/scripts/attach-devspaces-opencode.sh | sh
 ```
 
-The helper targets `openshell-opencode-017` by default; set `GATEWAY` to another registered alias when needed. Run it again after a Dev Spaces workspace recreation. It restores the loopback-only gateway `oc port-forward`, checks authentication to that gateway, and recreates the sandbox's local OpenCode forward. It expects the workspace's `oc` login, OpenShell 0.1.7 client configuration/mTLS files, and protected OpenCode login file to remain available; it does not provision credentials.
+The launcher checks out the repository under `$XDG_CACHE_HOME/opencodeopsdemo` (or `~/.cache/opencodeopsdemo`) and re-enters the Bash script there, so its companion files resolve correctly. With a valid `oc` login, it copies only the existing `opencode-server-auth` and `openshell-dashboard-client-tls` Secrets into the workspace's OpenShell config area. It creates the local login file and mTLS private key with mode `0600`, registers the loopback gateway at `https://127.0.0.1:18081`, and starts both forwards. Secret values are not printed. The user must have permission to read those two named Secrets in `opencode-internal`.
+
+From an existing repository checkout, the same flow is:
+
+```bash
+bash scripts/attach-devspaces-opencode.sh
+```
+
+The helper targets `openshell-opencode-017` and sandbox `opencode-server-2` by default. Run it again after a Dev Spaces workspace recreation. It restores the loopback-only gateway `oc port-forward`, checks authentication to that gateway, and recreates the sandbox's local OpenCode forward. It requires `oc`, OpenShell 0.1.7, Python 3, and the OpenCode CLI for interactive attachment. Use `--check` for authenticated health or `--smoke` for the marked inference check. Set `SANDBOX`, `GATEWAY`, or `LOCAL_OPENCODE_PORT` when connecting to a different target.
 
 To create a second sandbox in the prepared `cluster-9blcx` environment, run these scripts from this repository in the Dev Spaces terminal. The creation script pins the existing qualified image digest, inherits the source sandbox base policy, reuses the existing `opencode-model` and `opencode-mlflow` providers, and refuses to overwrite a sandbox with the same name. Its nonsecret settings are in [`deployments/cluster-9blcx/runtime.json`](deployments/cluster-9blcx/runtime.json); the MiniMax key and MLflow token stay in the existing provider/Secret workflow.
 
