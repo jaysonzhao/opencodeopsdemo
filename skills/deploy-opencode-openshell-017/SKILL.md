@@ -5,7 +5,7 @@ description: Deploy an internal OpenCode server inside an OpenShell sandbox on O
 
 # Internal OpenCode server on OpenShift
 
-For disconnected or restricted-network targets, read [../../docs/disconnected-deployment.md](../../docs/disconnected-deployment.md) before image preparation. Public image/source/package fetches in the connected build examples must be replaced with approved mirrors or prebuilt digest-pinned artifacts.
+For disconnected or restricted-network targets, follow [deploy-opencode-disconnected](../deploy-opencode-disconnected/SKILL.md) and [../../docs/disconnected-deployment.md](../../docs/disconnected-deployment.md) before image preparation. The disconnected workflow builds the final image in controlled staging, mirrors the complete rendered chart image set, and installs the transferred local chart package. Do not run the public-fetch build examples or install from an OCI URL on the disconnected side.
 
 Use the **OpenShell 0.1.7 internal-server track** for new requests. Read [references/internal-server.md](references/internal-server.md) completely before deployment. Its `assets/server/`, `scripts/render_server.py` and `scripts/server_credentials.py` are required companions. A request to prepare or update this skill authorizes file preparation, not live cluster changes. Report preparation and live acceptance separately.
 
@@ -24,7 +24,7 @@ Use the **OpenShell 0.1.7 internal-server track** for new requests. Read [refere
 
 ## Execute and verify
 
-Follow the runbook in order: inspect ownership and versions; prepare deferred settings; build/publish images; install or reuse a qualified gateway; test actual socket behavior; fill provider settings and configure MLflow RBAC; import profiles and credentials; create/stage the foreground server; forward and attach; verify inference, code context, traces and token renewal.
+Follow the runbook in order: inspect ownership and versions; prepare deferred settings; build/publish images (or complete the disconnected staging and mirror handoff); install or reuse a qualified gateway from the matching chart artifact; test actual socket behavior; fill provider settings and configure MLflow RBAC; import profiles and credentials; create/stage the foreground server; forward and attach; verify inference, code context, traces and token renewal.
 
 Require all of the following before reporting success:
 

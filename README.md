@@ -1,12 +1,13 @@
 # OpenCode on OpenShift
 
-This repository consolidates the OpenCode deployment manifests, build assets, operational scripts, and three OpenShift skills. It keeps the direct-Service deployment and the OpenShell sandbox deployment as separate tracks.
+This repository consolidates the OpenCode deployment manifests, build assets, operational scripts, and OpenShift skills. It keeps the direct-Service deployment and the OpenShell sandbox deployment as separate tracks, with disconnected deployment guidance layered across both.
 
 ## Choose a deployment track
 
 | Track | Use it for | Files |
 | --- | --- | --- |
 | OpenShell 0.1.7 | A sandboxed OpenCode server with mediated egress, MiniMax or another OpenAI-compatible provider, MLflow tracing, and authenticated forwarding | [`skills/deploy-opencode-openshell-017/SKILL.md`](skills/deploy-opencode-openshell-017/SKILL.md) |
+| Disconnected OpenShift | Staging, digest-locking, `oc-mirror` v2, local chart/CLI handoff, and disconnected acceptance for OpenShell; image-promotion steps also apply to the direct-Service track | [`skills/deploy-opencode-disconnected/SKILL.md`](skills/deploy-opencode-disconnected/SKILL.md), [`docs/disconnected-deployment.md`](docs/disconnected-deployment.md) |
 | Direct internal Service | A simpler OpenCode 1.18.3 deployment exposed only through a ClusterIP, with Secret-backed provider settings and MLflow tracing | [`opencode-server-build/`](opencode-server-build/), [`skills/deploy-opencode-openshift-mlflow/SKILL.md`](skills/deploy-opencode-openshift-mlflow/SKILL.md) |
 | Repair legacy OpenShell | Repair and token-renewal guidance for existing OpenShell 0.1.2 / MiniMax Global deployments | [`skills/repair-opencode-openshell-mlflow/SKILL.md`](skills/repair-opencode-openshell-mlflow/SKILL.md) |
 
@@ -20,11 +21,15 @@ Do not apply both deployment tracks into one namespace without reviewing resourc
 - `skills/deploy-opencode-openshell-017/`: OpenShell 0.1.7 skill, server and supervisor image assets, renderers, credential helpers, and version references.
 - `skills/deploy-opencode-openshift-mlflow/`: direct-Service deployment skill.
 - `skills/repair-opencode-openshell-mlflow/`: legacy deployment repair and MLflow renewal skill.
-- [`docs/disconnected-deployment.md`](docs/disconnected-deployment.md): image mirroring and offline-build considerations.
+- `scripts/prepare-disconnected-images.py`: inventories rendered Kubernetes images, resolves/verifies immutable digests, and writes an `oc-mirror` v2 image set plus OpenShell chart digest overrides.
+- [`docs/disconnected-deployment.md`](docs/disconnected-deployment.md): connected staging, image locking/mirroring, local artifact transfer, offline deployment, and acceptance.
+- [`skills/deploy-opencode-disconnected/SKILL.md`](skills/deploy-opencode-disconnected/SKILL.md): reusable disconnected deployment skill overlay.
 
 ## Direct-Service deployment quick start
 
 This path uses namespace `opencode` in its example manifests. Adapt the namespace, storage class, MLflow service details, and image digest to the target cluster. The checked-in digest and MLflow values are deployment examples, not portable discovery results.
+
+The BuildConfig below performs public source/package fetches. For a disconnected target, use the prebuilt-image promotion path in [`docs/disconnected-deployment.md`](docs/disconnected-deployment.md) and do not start this BuildConfig inside the isolated cluster.
 
 ```bash
 oc -n opencode apply -f opencode-server-build/build.yaml
@@ -76,7 +81,7 @@ For the existing `cluster-9blcx` OpenShell deployment's static MLflow ServiceAcc
 
 ## Disconnected clusters
 
-See [`docs/disconnected-deployment.md`](docs/disconnected-deployment.md) before using these builds in a disconnected or restricted-network cluster. Mirroring container images does not provide access to the external MiniMax API. A fully disconnected deployment needs a reachable internal OpenAI-compatible model endpoint or an explicitly permitted egress path.
+Follow [`skills/deploy-opencode-disconnected/SKILL.md`](skills/deploy-opencode-disconnected/SKILL.md) and [`docs/disconnected-deployment.md`](docs/disconnected-deployment.md) before building or installing in a disconnected or restricted-network cluster. Mirroring container images does not provide access to the external MiniMax API. A fully disconnected deployment needs a reachable internal OpenAI-compatible model endpoint or an explicitly permitted egress path.
 
 ## Local-only deployment state
 

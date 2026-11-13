@@ -117,3 +117,9 @@ The `alive` field confirms the forward process is running; `--check` confirms th
 ## Keep credentials protected
 
 The helper stores only the OpenCode server login and gateway client certificate in the Dev Spaces home, with restrictive file permissions. Do not copy the MiniMax key, MLflow token, or Kubernetes service-account token into the workspace or repository. Anyone who can read the gateway client private key has broad control over the gateway, so keep the workspace limited to trusted users.
+
+## Disconnected image inventory
+
+For disconnected staging, [`prepare-disconnected-images.py`](prepare-disconnected-images.py) scans rendered Kubernetes YAML, adds extra images such as the OpenCode image passed to `openshell sandbox create --from`, resolves and verifies immutable digests with `skopeo`, and emits an OpenShift `oc-mirror` v2 image-set configuration plus OpenShell chart digest overrides.
+
+Follow the complete [disconnected deployment runbook](../docs/disconnected-deployment.md) for connected staging, local chart/CLI transfer, image-set import, mirror-policy application, and inference/MLflow acceptance. The helper does not mirror or install anything itself, and the registry auth file must remain outside the repository and transferred bundle.

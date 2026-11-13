@@ -2,6 +2,8 @@
 
 Follow this workflow with an authenticated `oc` session. All source files and commands needed are included here. When asked only to prepare files, generate them without applying to a cluster. Never report live deployment or trace export as verified until section 7 passes.
 
+For disconnected or restricted-network targets, follow [the disconnected deployment skill](../../deploy-opencode-disconnected/SKILL.md) and [its runbook](../../../docs/disconnected-deployment.md). Build and publish the final image in connected CI, mirror its digest and the images in the workload, then deploy the prebuilt image. The source Containerfile downloads from public services, so do not run its BuildConfig in a disconnected cluster.
+
 ## 1. Establish the deployment contract
 
 - Target OpenShift 4.20+; reuse an already configured OpenShift AI 3.5 MLflow instance. The cluster hosting RHOAI must independently satisfy its supported platform matrix.
@@ -20,7 +22,7 @@ Adapt the kit in three places: add real `serve` mode instead of its CLI `sleep i
 
 ## 2. Discover inputs and prerequisites
 
-Require `oc`, Git, Python 3, project workload/build permissions, block storage, and build access to Quay, the UBI registry, GitHub, npm, and PyPI. Bootstrap requires permission to label the workspace namespace and provision its client Secret; normal clients need no Kubernetes access to the server project. Use amd64 for this baseline. Inspect existing same-name resources before applying; reuse only an intended deployment.
+Require `oc`, Git, Python 3, project workload/build permissions, block storage, and build access to Quay, the UBI registry, GitHub, npm, and PyPI for connected builds. A disconnected cluster uses the mirrored prebuilt image and does not run the public-fetching BuildConfig. Bootstrap requires permission to label the workspace namespace and provision its client Secret; normal clients need no Kubernetes access to the server project. Use amd64 for this baseline. Inspect existing same-name resources before applying; reuse only an intended deployment.
 
 ```bash
 set -euo pipefail
@@ -90,7 +92,7 @@ PY
 
 ## 4. Build the server image
 
-Create a build directory. Follow the kit's MLflow approach, use Node 22 to build the SDK (requires Node >=18), include plugin dependencies at build time, and pin Python SDK/plugin source to 3.14.0. Keep the resulting image digest. In controlled CI, also pin the Node builder image to an approved digest and mirror dependencies. The OpenCode base digest below was resolved from Quay during preparation.
+Create a build directory. Follow the kit's MLflow approach, use Node 22 to build the SDK (requires Node >=18), include plugin dependencies at build time, and pin Python SDK/plugin source to 3.14.0. Keep the resulting image digest. In controlled CI, also pin the Node builder image to an approved digest and mirror dependencies. The OpenCode base digest below was resolved from Quay during preparation. This build section is for connected CI; on the disconnected cluster, deploy the mirrored prebuilt image and skip the source build.
 
 ```bash
 mkdir -p opencode-server-build

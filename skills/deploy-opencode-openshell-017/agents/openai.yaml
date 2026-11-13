@@ -1,7 +1,7 @@
 interface:
   display_name: "Internal OpenCode on OpenShift"
   short_description: "Run OpenCode in OpenShell with API and MLflow setup"
-  default_prompt: "Use $deploy-opencode-openshell-017 to prepare an internal OpenCode server in OpenShell 0.1.7 on OpenShift 4.20+, with a later-defined OpenAI-compatible API and Secret and the existing OpenShift AI 3.5 MLflow service. For disconnected targets, first review docs/disconnected-deployment.md."
+  default_prompt: "Use $deploy-opencode-openshell-017 to prepare an internal OpenCode server in OpenShell 0.1.7 on OpenShift 4.20+, with a later-defined OpenAI-compatible API and Secret and the existing OpenShift AI 3.5 MLflow service. For disconnected targets, also follow $deploy-opencode-disconnected and docs/disconnected-deployment.md before building or installing."
   icon_small: "assets/icon.svg"
   icon_large: "assets/icon.svg"
 policy:
