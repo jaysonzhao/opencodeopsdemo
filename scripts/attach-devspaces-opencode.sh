@@ -72,17 +72,79 @@ command -v python3 >/dev/null 2>&1 || {
   printf 'ERROR: python3 is required to provision protected credentials.\n' >&2
   exit 1
 }
-command -v openshell >/dev/null 2>&1 || {
-  printf 'ERROR: OpenShell 0.1.7 is not on PATH. Install the matching CLI, then retry.\n' >&2
-  exit 1
-}
-[[ "$(openshell --version 2>/dev/null)" == 'openshell 0.1.7' ]] || {
-  printf 'ERROR: this gateway requires OpenShell CLI 0.1.7.\n' >&2
+oc whoami >/dev/null 2>&1 || {
+  printf 'ERROR: oc is not logged in. Log in to the cluster used by this Dev Spaces workspace, then retry.\n' >&2
   exit 1
 }
 
-oc whoami >/dev/null 2>&1 || {
-  printf 'ERROR: oc is not logged in. Log in to the cluster used by this Dev Spaces workspace, then retry.\n' >&2
+export PATH="$HOME/.local/bin:$PATH"
+if ! command -v openshell >/dev/null 2>&1; then
+  mkdir -p "$HOME/.local/bin"
+  chmod 700 "$HOME/.local/bin"
+  python3 - "$HOME/.local/bin/openshell" <<'PY'
+import hashlib
+import io
+import os
+import platform
+import re
+import sys
+import tarfile
+import tempfile
+import urllib.request
+from pathlib import Path
+
+target = Path(sys.argv[1])
+filename = "openshell-x86_64-unknown-linux-musl.tar.gz"
+asset = "https://github.com/NVIDIA/OpenShell/releases/download/v0.1.7/" + filename
+checksums_url = "https://github.com/NVIDIA/OpenShell/releases/download/v0.1.7/openshell-checksums-sha256.txt"
+if sys.platform != "linux" or platform.machine() not in ("x86_64", "amd64"):
+    raise SystemExit("Automatic OpenShell install is supported on Linux x86_64 only")
+
+def fetch(url):
+    with urllib.request.urlopen(url, timeout=120) as response:
+        data = response.read(128 * 1024 * 1024 + 1)
+    if len(data) > 128 * 1024 * 1024:
+        raise SystemExit("OpenShell release download exceeded the size limit")
+    return data
+
+try:
+    checksum_text = fetch(checksums_url).decode("utf-8")
+    matches = []
+    for line in checksum_text.splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[1].lstrip("*") == filename and re.fullmatch(r"[a-f0-9]{64}", parts[0]):
+            matches.append(parts[0])
+    if len(matches) != 1:
+        raise ValueError("release did not publish exactly one checksum for the Linux x86_64 archive")
+    archive_bytes = fetch(asset)
+    if hashlib.sha256(archive_bytes).hexdigest() != matches[0]:
+        raise ValueError("published SHA256 verification failed")
+    with tarfile.open(fileobj=io.BytesIO(archive_bytes), mode="r:gz") as archive:
+        binaries = [member for member in archive.getmembers()
+                    if member.isfile() and Path(member.name).name == "openshell"]
+        if len(binaries) != 1:
+            raise ValueError("archive did not contain exactly one regular openshell binary")
+        binary = archive.extractfile(binaries[0]).read()
+    target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=".openshell.", dir=target.parent)
+    try:
+        os.fchmod(fd, 0o700)
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(binary)
+        os.replace(temporary, target)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+        raise
+except Exception as error:
+    raise SystemExit("OpenShell 0.1.7 install failed: " + str(error)) from error
+PY
+  printf 'Installed checksum-verified OpenShell CLI 0.1.7.\n'
+fi
+[[ "$(openshell --version 2>/dev/null)" == 'openshell 0.1.7' ]] || {
+  printf 'ERROR: this gateway requires OpenShell CLI 0.1.7.\n' >&2
   exit 1
 }
 
@@ -203,6 +265,21 @@ else
   openshell gateway select "$GATEWAY" >/dev/null
 fi
 
+if [[ "$ACTION" == attach ]]; then
+  if ! command -v opencode >/dev/null 2>&1; then
+    command -v npm >/dev/null 2>&1 || {
+      printf 'ERROR: npm is required to install OpenCode CLI 1.18.3 in this workspace.\n' >&2
+      exit 1
+    }
+    npm install --global --prefix "$HOME/.local" opencode-ai@1.18.3
+  fi
+  OPENCODE_VERSION="$(opencode --version 2>/dev/null || true)"
+  [[ "$OPENCODE_VERSION" == *1.18.3* ]] || {
+    printf 'ERROR: OpenCode CLI 1.18.3 is required; found: %s\n' "${OPENCODE_VERSION:-unknown}" >&2
+    exit 1
+  }
+fi
+
 "$SCRIPT_DIR/start-devspaces-forwards.sh"
 
 set -a
@@ -247,5 +324,4 @@ if [[ "$ACTION" == "--smoke" ]]; then
   exit 0
 fi
 
-command -v opencode >/dev/null 2>&1 || { printf 'ERROR: opencode CLI is not on PATH.\n' >&2; exit 1; }
 exec opencode attach "http://127.0.0.1:$LOCAL_OPENCODE_PORT" --dir "$REMOTE_DIR"
